@@ -2,27 +2,61 @@
 
 namespace Claroline\PluginInstaller;
 
-use AppKernel;
 use Composer\Installer\LibraryInstaller;
 use Composer\Repository\InstalledRepositoryInterface;
 use Composer\Package\PackageInterface;
-
-require_once __DIR__ . '/../../../../../app/autoload.php';
-require_once __DIR__ . '/../../../../../app/AppKernel.php';
 
 class Installer extends LibraryInstaller
 {
     /**
      * {@inheritDoc}
      */
+    public function supports($packageType)
+    {
+        return $packageType === 'claroline-plugin';
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function install(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
         parent::install($repo, $package);
-        $kernel = new AppKernel('dev', true);
-        $kernel->boot();
-        $installer = $kernel->getContainer()->get('claroline.plugin.installer');
+        $coreInstaller = $this->getCoreInstaller();
+        $properties = $this->resolvePackageName($package->getName());
 
-        $parts = explode('/', $package->getName());
+        try {
+            $coreInstaller->install($properties['fqcn'], $properties['path']);
+        } catch (\Exception $ex) {
+            parent::uninstall($repo, $package);
+
+            throw new InstallationException(
+                "An exception with message '{$ex->getMessage()}' occured during "
+                    . "{$package->getName()} installation. The package has been "
+                    . 'removed. Installation is aborting.'
+            );
+        }
+    }
+
+    private function getCoreInstaller()
+    {
+        static $installer;
+
+        if (!isset($installer)) {
+            require_once __DIR__ . '/../../../../../app/autoload.php';
+            require_once __DIR__ . '/../../../../../app/AppKernel.php';
+
+            $kernel = new \AppKernel('dev', true);
+            $kernel->boot();
+            $installer = $kernel->getContainer()->get('claroline.plugin.installer');
+        }
+
+        return $installer;
+    }
+
+    private function resolvePackageName($packageName)
+    {
+        $parts = explode('/', $packageName);
         $vendor = ucfirst($parts[0]);
         $bundleParts = explode('-', $parts[1]);
         $bundle = '';
@@ -32,16 +66,8 @@ class Installer extends LibraryInstaller
         }
 
         $fqcn = "{$vendor}\\{$bundle}\\{$vendor}{$bundle}";
-        $path = "{$this->vendorDir}/{$package->getName()}/{$vendor}/{$bundle}/{$vendor}{$bundle}.php";
-        $installer->install($fqcn, $path);
-    }
+        $path = "{$this->vendorDir}/{$packageName}/{$vendor}/{$bundle}/{$vendor}{$bundle}.php";
 
-    /**
-     * {@inheritDoc}
-     */
-    public function supports($packageType)
-    {
-        return $packageType === 'claroline-plugin';
+        return array('fqcn' => $fqcn, 'path' => $path);
     }
 }
-
