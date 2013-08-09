@@ -45,7 +45,7 @@ class Installer extends LibraryInstaller
     {
         $coreInstaller = $this->getCoreInstaller();
         $properties = $this->resolvePackageName($package->getName());
-        $coreInstaller->install($properties['fqcn']);
+        $coreInstaller->uninstall($properties['fqcn']);
         parent::uninstall($repo, $package);
     }
 
