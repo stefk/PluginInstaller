@@ -38,6 +38,17 @@ class Installer extends LibraryInstaller
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    public function uninstall(InstalledRepositoryInterface $repo, PackageInterface $package)
+    {
+        $coreInstaller = $this->getCoreInstaller();
+        $properties = $this->resolvePackageName($package->getName());
+        $coreInstaller->install($properties['fqcn']);
+        parent::uninstall($repo, $package);
+    }
+
     private function getCoreInstaller()
     {
         static $installer;
