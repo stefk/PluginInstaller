@@ -49,6 +49,29 @@ class Installer extends LibraryInstaller
         parent::uninstall($repo, $package);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    public function update(InstalledRepositoryInterface $repo, PackageInterface $initial, PackageInterface $target)
+    {
+        $coreInstaller = $this->getCoreInstaller();
+        $properties = $this->resolvePackageName($initial->getName());
+        $initialDbVersion = $this->getDatabaseVersion($initial);
+        $targetDbVersion = $this->getDatabaseVersion($target);
+
+        if (false === $targetDbVersion || $initialDbVersion === $targetDbVersion) {
+            parent::update($repo, $initial, $target);
+        } elseif (false === $initialDbVersion || $initialDbVersion < $targetDbVersion) {
+            parent::update($repo, $initial, $target);
+            $this->io->write("  - Migrating <info>{$target->getName()}</info> to db version '{$targetDbVersion}'");
+            $coreInstaller->migrate($properties['fqcn'], $targetDbVersion);
+        } elseif ($initialDbVersion > $targetDbVersion) {
+            $this->io->write("  - Migrating <info>{$target->getName()}</info> to db version '{$targetDbVersion}'");
+            $coreInstaller->migrate($properties['fqcn'], $targetDbVersion);
+            parent::update($repo, $initial, $target);
+        }
+    }
+
     private function getCoreInstaller()
     {
         static $installer;
@@ -80,5 +103,12 @@ class Installer extends LibraryInstaller
         $path = "{$this->vendorDir}/{$packageName}/{$vendor}/{$bundle}/{$vendor}{$bundle}.php";
 
         return array('fqcn' => $fqcn, 'path' => $path);
+    }
+
+    private function getDatabaseVersion(PackageInterface $package)
+    {
+        $extra = $package->getExtra();
+
+        return isset($extra['dbVersion']) ? $extra['dbVersion'] : false;
     }
 }
