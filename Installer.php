@@ -3,11 +3,33 @@
 namespace Claroline\PluginInstaller;
 
 use Composer\Installer\LibraryInstaller;
+use Composer\IO\IOInterface;
+use Composer\Composer;
 use Composer\Repository\InstalledRepositoryInterface;
 use Composer\Package\PackageInterface;
+use Symfony\Component\HttpKernel\KernelInterface;
 
 class Installer extends LibraryInstaller
 {
+    /**
+     * @var \Symfony\Component\HttpKernel\KernelInterface
+     */
+    private $kernel;
+
+    /**
+     * Constructor.
+     *
+     * @param \Composer\IO\IOInterface                      $io
+     * @param \Composer\Composer                            $composer
+     * @param string                                        $type
+     * @param \Symfony\Component\HttpKernel\KernelInterface $kernel
+     */
+    public function __construct(IOInterface $io, Composer $composer, $type = 'library', KernelInterface $kernel = null)
+    {
+        parent::__construct($io, $composer, $type);
+        $this->kernel = $kernel;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -21,7 +43,7 @@ class Installer extends LibraryInstaller
      */
     public function install(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
-        parent::install($repo, $package);
+        $this->installPackage($repo, $package);
         $coreInstaller = $this->getCoreInstaller();
         $properties = $this->resolvePackageName($package->getName());
 
@@ -29,7 +51,7 @@ class Installer extends LibraryInstaller
             $this->io->write("  - Installing <info>{$package->getName()}</info> as a Claroline plugin");
             $coreInstaller->install($properties['fqcn'], $properties['path']);
         } catch (\Exception $ex) {
-            parent::uninstall($repo, $package);
+            $this->uninstallPackage($repo, $package);
 
             throw new InstallationException(
                 "An exception with message '{$ex->getMessage()}' occured during "
@@ -48,7 +70,7 @@ class Installer extends LibraryInstaller
         $properties = $this->resolvePackageName($package->getName());
         $this->io->write("  - Uninstalling Claroline plugin <info>{$package->getName()}</info>");
         $coreInstaller->uninstall($properties['fqcn']);
-        parent::uninstall($repo, $package);
+        $this->uninstallPackage($repo, $package);
     }
 
     /**
@@ -62,32 +84,63 @@ class Installer extends LibraryInstaller
         $targetDbVersion = $this->getDatabaseVersion($target);
 
         if (false === $targetDbVersion || $initialDbVersion === $targetDbVersion) {
-            parent::update($repo, $initial, $target);
+            $this->updatePackage($repo, $initial, $target);
         } elseif (false === $initialDbVersion || $initialDbVersion < $targetDbVersion) {
-            parent::update($repo, $initial, $target);
+            $this->updatePackage($repo, $initial, $target);
             $this->io->write("  - Migrating <info>{$target->getName()}</info> to db version '{$targetDbVersion}'");
             $coreInstaller->migrate($properties['fqcn'], $targetDbVersion);
         } elseif ($initialDbVersion > $targetDbVersion) {
             $this->io->write("  - Migrating <info>{$target->getName()}</info> to db version '{$targetDbVersion}'");
             $coreInstaller->migrate($properties['fqcn'], $targetDbVersion);
-            parent::update($repo, $initial, $target);
+            $this->updatePackage($repo, $initial, $target);
         }
+    }
+
+    /**
+     * Parent method wrapper (testing purposes).
+     *
+     * @param \Composer\Repository\InstalledRepositoryInterface $repo
+     * @param \Composer\Package\PackageInterface                $package
+     */
+    public function installPackage(InstalledRepositoryInterface $repo, PackageInterface $package)
+    {
+        parent::install($repo, $package);
+    }
+
+    /**
+     * Parent method wrapper (testing purposes).
+     *
+     * @param \Composer\Repository\InstalledRepositoryInterface $repo
+     * @param \Composer\Package\PackageInterface                $package
+     */
+    public function uninstallPackage(InstalledRepositoryInterface $repo, PackageInterface $package)
+    {
+        parent::uninstall($repo, $package);
+    }
+
+    /**
+     * Parent method wrapper (testing purposes).
+     *
+     * @param \Composer\Repository\InstalledRepositoryInterface $repo
+     * @param \Composer\Package\PackageInterface                $initial
+     * @param \Composer\Package\PackageInterface                $target
+     */
+    public function updatePackage(InstalledRepositoryInterface $repo, PackageInterface $initial, PackageInterface $target)
+    {
+        parent::update($repo, $initial, $target);
     }
 
     private function getCoreInstaller()
     {
-        static $installer;
-
-        if (!isset($installer)) {
+        if ($this->kernel === null) {
             require_once __DIR__ . '/../../../../../app/autoload.php';
             require_once __DIR__ . '/../../../../../app/AppKernel.php';
 
-            $kernel = new \AppKernel('dev', true);
-            $kernel->boot();
-            $installer = $kernel->getContainer()->get('claroline.plugin.installer');
+            $this->kernel = new \AppKernel('dev', true);
+            $this->kernel->boot();
         }
 
-        return $installer;
+        return $this->kernel->getContainer()->get('claroline.plugin.installer');
     }
 
     private function resolvePackageName($packageName)
