@@ -26,7 +26,7 @@ class Installer extends LibraryInstaller
         $properties = $this->resolvePackageName($package->getName());
 
         try {
-            $this->io->write("  -  Installing <info>{$package->getName()}</info> as a Claroline plugin");
+            $this->io->write("  - Installing <info>{$package->getName()}</info> as a Claroline plugin");
             $coreInstaller->install($properties['fqcn'], $properties['path']);
         } catch (\Exception $ex) {
             parent::uninstall($repo, $package);
@@ -46,7 +46,7 @@ class Installer extends LibraryInstaller
     {
         $coreInstaller = $this->getCoreInstaller();
         $properties = $this->resolvePackageName($package->getName());
-        $this->io->write("  -  Uninstalling Claroline plugin <info>{$package->getName()}</info>");
+        $this->io->write("  - Uninstalling Claroline plugin <info>{$package->getName()}</info>");
         $coreInstaller->uninstall($properties['fqcn']);
         parent::uninstall($repo, $package);
     }
