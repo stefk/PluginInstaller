@@ -9,6 +9,9 @@ use Composer\Repository\InstalledRepositoryInterface;
 use Composer\Package\PackageInterface;
 use Symfony\Component\HttpKernel\KernelInterface;
 
+/**
+ * Composer custom installer for Claroline plugins.
+ */
 class Installer extends LibraryInstaller
 {
     /**
