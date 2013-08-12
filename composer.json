@@ -1,9 +1,6 @@
 {
     "name": "claroline/plugin-installer",
     "type": "composer-installer",
-    "require": {
-        "claroline/core-bundle": "dev-master"
-    },
     "require-dev": {
         "composer/composer": "dev-master",
         "mockery/mockery": "dev-master@dev"
