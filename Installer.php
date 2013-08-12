@@ -150,10 +150,10 @@ class Installer extends LibraryInstaller
     {
         $this->autoloader = $this->autoloader !== null ?
             $this->autoloader :
-            require_once __DIR__ . '/../../../../../app/autoload.php';
+            require_once $this->vendorDir . '/../app/autoload.php';
 
         if ($this->kernel === null) {
-            require_once __DIR__ . '/../../../../../app/AppKernel.php';
+            require_once $this->vendorDir . '/../app/AppKernel.php';
             $this->kernel = new \AppKernel('dev', true);
             $this->kernel->boot();
         }
