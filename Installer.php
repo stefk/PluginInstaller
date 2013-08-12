@@ -7,6 +7,7 @@ use Composer\IO\IOInterface;
 use Composer\Composer;
 use Composer\Repository\InstalledRepositoryInterface;
 use Composer\Package\PackageInterface;
+use Composer\Autoload\ClassLoader;
 use Symfony\Component\HttpKernel\KernelInterface;
 
 /**
@@ -20,6 +21,11 @@ class Installer extends LibraryInstaller
     private $kernel;
 
     /**
+     * @var \Composer\Autoload\ClassLoader
+     */
+    private $autoloader;
+
+    /**
      * Constructor.
      *
      * @param \Composer\IO\IOInterface                      $io
@@ -27,10 +33,18 @@ class Installer extends LibraryInstaller
      * @param string                                        $type
      * @param \Symfony\Component\HttpKernel\KernelInterface $kernel
      */
-    public function __construct(IOInterface $io, Composer $composer, $type = 'library', KernelInterface $kernel = null)
+    public function __construct(
+        IOInterface $io,
+        Composer $composer,
+        $type = 'library',
+        KernelInterface $kernel = null,
+        ClassLoader $autoloader = null
+    )
     {
         parent::__construct($io, $composer, $type);
         $this->kernel = $kernel;
+        $this->autoloader = $autoloader;
+        $this->initialize();
     }
 
     /**
@@ -47,12 +61,12 @@ class Installer extends LibraryInstaller
     public function install(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
         $this->installPackage($repo, $package);
-        $coreInstaller = $this->getCoreInstaller();
         $properties = $this->resolvePackageName($package->getName());
+        $this->autoloader->add($properties['namespace'], array("{$this->vendorDir}/{$package->getName()}"));
 
         try {
             $this->io->write("  - Installing <info>{$package->getName()}</info> as a Claroline plugin");
-            $coreInstaller->install($properties['fqcn'], $properties['path']);
+            $this->getCoreInstaller()->install($properties['fqcn'], $properties['path']);
         } catch (\Exception $ex) {
             $this->uninstallPackage($repo, $package);
 
@@ -69,10 +83,9 @@ class Installer extends LibraryInstaller
      */
     public function uninstall(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
-        $coreInstaller = $this->getCoreInstaller();
         $properties = $this->resolvePackageName($package->getName());
         $this->io->write("  - Uninstalling Claroline plugin <info>{$package->getName()}</info>");
-        $coreInstaller->uninstall($properties['fqcn']);
+        $this->getCoreInstaller()->uninstall($properties['fqcn']);
         $this->uninstallPackage($repo, $package);
     }
 
@@ -133,17 +146,17 @@ class Installer extends LibraryInstaller
         parent::update($repo, $initial, $target);
     }
 
-    private function getCoreInstaller()
+    private function initialize()
     {
-        if ($this->kernel === null) {
+        $this->autoloader = $this->autoloader !== null ?
+            $this->autoloader :
             require_once __DIR__ . '/../../../../../app/autoload.php';
-            require_once __DIR__ . '/../../../../../app/AppKernel.php';
 
+        if ($this->kernel === null) {
+            require_once __DIR__ . '/../../../../../app/AppKernel.php';
             $this->kernel = new \AppKernel('dev', true);
             $this->kernel->boot();
         }
-
-        return $this->kernel->getContainer()->get('claroline.plugin.installer');
     }
 
     private function resolvePackageName($packageName)
@@ -157,10 +170,16 @@ class Installer extends LibraryInstaller
             $bundle .= ucfirst($bundlePart);
         }
 
-        $fqcn = "{$vendor}\\{$bundle}\\{$vendor}{$bundle}";
+        $namespace = "{$vendor}\\{$bundle}";
+        $fqcn = "{$namespace}\\{$vendor}{$bundle}";
         $path = "{$this->vendorDir}/{$packageName}/{$vendor}/{$bundle}/{$vendor}{$bundle}.php";
 
-        return array('fqcn' => $fqcn, 'path' => $path);
+        return array('namespace' => $namespace, 'fqcn' => $fqcn, 'path' => $path);
+    }
+
+    private function getCoreInstaller()
+    {
+        return $this->kernel->getContainer()->get('claroline.plugin.installer');
     }
 
     private function getDatabaseVersion(PackageInterface $package)

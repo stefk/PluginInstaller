@@ -8,6 +8,7 @@ class InstallerTest extends \PHPUnit_Framework_TestCase
 {
     private $installer;
     private $coreInstaller;
+    private $autoloader;
 
     protected function setUp()
     {
@@ -26,10 +27,11 @@ class InstallerTest extends \PHPUnit_Framework_TestCase
         $container->shouldReceive('get')->with('claroline.plugin.installer')->andReturn($this->coreInstaller);
         $kernel = m::mock('Symfony\Component\HttpKernel\KernelInterface');
         $kernel->shouldReceive('getContainer')->andReturn($container);
+        $this->autoloader = m::mock('Composer\Autoload\ClassLoader');
 
         $this->installer = m::mock(
             'Claroline\PluginInstaller\Installer[installPackage, uninstallPackage, updatePackage]',
-            array($io, $composer, 'library', $kernel)
+            array($io, $composer, 'library', $kernel, $this->autoloader)
         );
     }
 
@@ -48,6 +50,7 @@ class InstallerTest extends \PHPUnit_Framework_TestCase
         $repo = m::mock('Composer\Repository\InstalledRepositoryInterface');
         $package = m::mock('Composer\Package\PackageInterface');
         $package->shouldReceive('getName')->andReturn('foo/bar');
+        $this->autoloader->shouldReceive('add')->once()->with('Foo\Bar', array('/foo/bar'));
         $this->installer->shouldReceive('installPackage')->once()->with($repo, $package);
         $this->coreInstaller->shouldReceive('install')
             ->once()
@@ -65,6 +68,7 @@ class InstallerTest extends \PHPUnit_Framework_TestCase
         $repo = m::mock('Composer\Repository\InstalledRepositoryInterface');
         $package = m::mock('Composer\Package\PackageInterface');
         $package->shouldReceive('getName')->andReturn('foo/bar');
+        $this->autoloader->shouldReceive('add')->once()->with('Foo\Bar', array('/foo/bar'));
         $this->installer->shouldReceive('installPackage')->once()->with($repo, $package);
         $this->coreInstaller->shouldReceive('install')
             ->once()
