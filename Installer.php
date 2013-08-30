@@ -44,7 +44,6 @@ class Installer extends LibraryInstaller
         parent::__construct($io, $composer, $type);
         $this->kernel = $kernel;
         $this->autoloader = $autoloader;
-        $this->initialize();
     }
 
     /**
@@ -60,6 +59,7 @@ class Installer extends LibraryInstaller
      */
     public function install(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
+        $this->initialize();
         $this->installPackage($repo, $package);
         $properties = $this->resolvePackageName($package->getName());
         $this->autoloader->add($properties['namespace'], array("{$this->vendorDir}/{$package->getName()}"));
@@ -83,6 +83,7 @@ class Installer extends LibraryInstaller
      */
     public function uninstall(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
+        $this->initialize();
         $properties = $this->resolvePackageName($package->getName());
         $this->io->write("  - Uninstalling Claroline plugin <info>{$package->getName()}</info>");
         $this->getCoreInstaller()->uninstall($properties['fqcn']);
@@ -94,6 +95,7 @@ class Installer extends LibraryInstaller
      */
     public function update(InstalledRepositoryInterface $repo, PackageInterface $initial, PackageInterface $target)
     {
+        $this->initialize();
         $coreInstaller = $this->getCoreInstaller();
         $properties = $this->resolvePackageName($initial->getName());
         $initialDbVersion = $this->getDatabaseVersion($initial);
