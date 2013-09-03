@@ -7,7 +7,6 @@ use Composer\IO\IOInterface;
 use Composer\Composer;
 use Composer\Repository\InstalledRepositoryInterface;
 use Composer\Package\PackageInterface;
-use Composer\Autoload\ClassLoader;
 use Symfony\Component\HttpKernel\KernelInterface;
 
 /**
@@ -21,11 +20,6 @@ class Installer extends LibraryInstaller
     private $kernel;
 
     /**
-     * @var \Composer\Autoload\ClassLoader
-     */
-    private $autoloader;
-
-    /**
      * Constructor.
      *
      * @param \Composer\IO\IOInterface                      $io
@@ -37,13 +31,11 @@ class Installer extends LibraryInstaller
         IOInterface $io,
         Composer $composer,
         $type = 'library',
-        KernelInterface $kernel = null,
-        ClassLoader $autoloader = null
+        KernelInterface $kernel = null
     )
     {
         parent::__construct($io, $composer, $type);
         $this->kernel = $kernel;
-        $this->autoloader = $autoloader;
     }
 
     /**
@@ -62,7 +54,6 @@ class Installer extends LibraryInstaller
         $this->initialize();
         $this->installPackage($repo, $package);
         $properties = $this->resolvePackageName($package->getName());
-        $this->autoloader->add($properties['namespace'], array("{$this->vendorDir}/{$package->getName()}"));
 
         try {
             $this->io->write("  - Installing <info>{$package->getName()}</info> as a Claroline plugin");
@@ -150,10 +141,6 @@ class Installer extends LibraryInstaller
 
     private function initialize()
     {
-        $this->autoloader = $this->autoloader !== null ?
-            $this->autoloader :
-            require_once $this->vendorDir . '/../app/autoload.php';
-
         if ($this->kernel === null) {
             require_once $this->vendorDir . '/../app/AppKernel.php';
             $this->kernel = new \AppKernel('dev', true);
