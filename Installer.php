@@ -210,7 +210,7 @@ class Installer extends LibraryInstaller
         $baseInstaller = $this->kernel->getContainer()->get('claroline.installation.manager');
         $io = $this->io;
         $baseInstaller->setLogger(function ($message) use ($io) {
-            $io->write($message);
+            $io->write("    {$message}");
         });
 
         return $baseInstaller;
