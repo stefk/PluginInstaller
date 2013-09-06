@@ -7,10 +7,12 @@ use Composer\IO\IOInterface;
 use Composer\Composer;
 use Composer\Repository\InstalledRepositoryInterface;
 use Composer\Package\PackageInterface;
+use Composer\Autoload\ClassLoader;
 use Symfony\Component\HttpKernel\KernelInterface;
+use Claroline\BundleRecorder\Recorder;
 
 /**
- * Composer custom installer for Claroline plugins.
+ * Composer custom installer for Claroline core bundles.
  */
 class Installer extends LibraryInstaller
 {
@@ -20,22 +22,30 @@ class Installer extends LibraryInstaller
     private $kernel;
 
     /**
+     * @var \Claroline\BundleRecorder\Recorder
+     */
+    private $recorder;
+
+    /**
      * Constructor.
      *
      * @param \Composer\IO\IOInterface                      $io
      * @param \Composer\Composer                            $composer
      * @param string                                        $type
      * @param \Symfony\Component\HttpKernel\KernelInterface $kernel
+     * @param \Claroline\BundleRecorder\Recorder            $recorder
      */
     public function __construct(
         IOInterface $io,
         Composer $composer,
         $type = 'library',
-        KernelInterface $kernel = null
+        KernelInterface $kernel = null,
+        Recorder $recorder = null
     )
     {
         parent::__construct($io, $composer, $type);
         $this->kernel = $kernel;
+        $this->recorder = $recorder;
     }
 
     /**
@@ -51,21 +61,36 @@ class Installer extends LibraryInstaller
      */
     public function install(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
-        $this->initialize();
         $this->installPackage($repo, $package);
-        $properties = $this->resolvePackageName($package->getName());
+        $bundle = $this->getBundle($package->getName());
+        $this->initApplicationKernel();
+        $container = $this->kernel->getContainer();
+        $validator = $container->get('claroline.plugin.validator');
+        $recorder = $container->get('claroline.plugin.recorder');
 
         try {
             $this->io->write("  - Installing <info>{$package->getName()}</info> as a Claroline plugin");
-            $this->getCoreInstaller()->install($properties['fqcn'], $properties['path']);
-        } catch (\Exception $ex) {
-            $this->uninstallPackage($repo, $package);
+            $errors = $validator->validate($bundle);
 
-            throw new InstallationException(
-                "An exception with message '{$ex->getMessage()}' occured during "
-                    . "{$package->getName()} installation. The package has been "
-                    . 'removed. Installation is aborting.'
+            if (0 !== count($errors)) {
+                throw new \Exception(
+                    "Plugin {$bundle->getName()} configuration is incorrect: " . var_dump($errors)
+                );
+            }
+
+            $recorder->register($bundle, $validator->getPluginConfiguration());
+            $bundleRecorder = $this->getBundleRecorder();
+            $bundleRecorder->addBundles($bundleRecorder->detectBundles($package));
+            $this->initApplicationKernel();
+            $this->getBaseInstaller()->install($bundle);
+        } catch (\Exception $ex) {
+            $recorder->unregister($bundle);
+            $this->uninstallPackage($repo, $package);
+            $this->io->write(
+                "<error>An exception has been thrown during {$package->getName()} installation. "
+                . "The package has been removed. Installation is aborting.</error>"
             );
+            throw $ex;
         }
     }
 
@@ -74,10 +99,11 @@ class Installer extends LibraryInstaller
      */
     public function uninstall(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
-        $this->initialize();
-        $properties = $this->resolvePackageName($package->getName());
+        $this->initApplicationKernel();
+        $bundle = $this->getBundle($package->getName());
         $this->io->write("  - Uninstalling Claroline plugin <info>{$package->getName()}</info>");
-        $this->getCoreInstaller()->uninstall($properties['fqcn']);
+        $this->kernel->getContainer()->get('claroline.plugin.recorder')->unregister($bundle);
+        $this->getBaseInstaller()->uninstall($bundle);
         $this->uninstallPackage($repo, $package);
     }
 
@@ -86,9 +112,9 @@ class Installer extends LibraryInstaller
      */
     public function update(InstalledRepositoryInterface $repo, PackageInterface $initial, PackageInterface $target)
     {
-        $this->initialize();
-        $coreInstaller = $this->getCoreInstaller();
-        $properties = $this->resolvePackageName($initial->getName());
+        $this->initApplicationKernel();
+        $baseInstaller = $this->getBaseInstaller();
+        $bundle = $this->getBundle($package->getName());
         $initialDbVersion = $this->getDatabaseVersion($initial);
         $targetDbVersion = $this->getDatabaseVersion($target);
 
@@ -97,10 +123,10 @@ class Installer extends LibraryInstaller
         } elseif (false === $initialDbVersion || $initialDbVersion < $targetDbVersion) {
             $this->updatePackage($repo, $initial, $target);
             $this->io->write("  - Migrating <info>{$target->getName()}</info> to db version '{$targetDbVersion}'");
-            $coreInstaller->migrate($properties['fqcn'], $targetDbVersion);
+            $baseInstaller->migrate($bundle, $targetDbVersion);
         } elseif ($initialDbVersion > $targetDbVersion) {
             $this->io->write("  - Migrating <info>{$target->getName()}</info> to db version '{$targetDbVersion}'");
-            $coreInstaller->migrate($properties['fqcn'], $targetDbVersion);
+            $baseInstaller->migrate($bundle, $targetDbVersion);
             $this->updatePackage($repo, $initial, $target);
         }
     }
@@ -139,7 +165,7 @@ class Installer extends LibraryInstaller
         parent::update($repo, $initial, $target);
     }
 
-    private function initialize()
+    private function initApplicationKernel()
     {
         if ($this->kernel === null) {
             require_once $this->vendorDir . '/../app/AppKernel.php';
@@ -148,7 +174,16 @@ class Installer extends LibraryInstaller
         }
     }
 
-    private function resolvePackageName($packageName)
+    private function getBundleRecorder()
+    {
+        if ($this->recorder === null) {
+            $this->recorder = new Recorder($this->composer);
+        }
+
+        return $this->recorder;
+    }
+
+    private function getBundle($packageName)
     {
         $parts = explode('/', $packageName);
         $vendor = ucfirst($parts[0]);
@@ -161,14 +196,18 @@ class Installer extends LibraryInstaller
 
         $namespace = "{$vendor}\\{$bundle}";
         $fqcn = "{$namespace}\\{$vendor}{$bundle}";
-        $path = "{$this->vendorDir}/{$packageName}/{$vendor}/{$bundle}/{$vendor}{$bundle}.php";
+        $packagePath = "{$this->vendorDir}/{$packageName}";
 
-        return array('namespace' => $namespace, 'fqcn' => $fqcn, 'path' => $path);
+        $loader = new ClassLoader();
+        $loader->add($namespace, $packagePath);
+        $loader->register();
+
+        return new $fqcn;
     }
 
-    private function getCoreInstaller()
+    private function getBaseInstaller()
     {
-        return $this->kernel->getContainer()->get('claroline.plugin.installer');
+        return $this->kernel->getContainer()->get('claroline.installation.manager');
     }
 
     private function getDatabaseVersion(PackageInterface $package)
