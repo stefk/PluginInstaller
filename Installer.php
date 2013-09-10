@@ -172,6 +172,8 @@ class Installer extends LibraryInstaller
         $installer->setLogger(function ($message) use ($io) {
             $io->write("    {$message}");
         });
+
+        return $installer;
     }
 
     private function getDatabaseVersion(PackageInterface $package)
