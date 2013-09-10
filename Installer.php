@@ -11,7 +11,7 @@ use Composer\Autoload\ClassLoader;
 use Symfony\Component\HttpKernel\KernelInterface;
 
 /**
- * Composer custom installer for Claroline core bundles.
+ * Composer custom installer for Claroline plugin bundles.
  */
 class Installer extends LibraryInstaller
 {
