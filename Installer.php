@@ -62,7 +62,7 @@ class Installer extends LibraryInstaller
         } catch (\Exception $ex) {
             $this->uninstallPackage($repo, $package);
             $this->io->write(
-                "<error>An exception has been thrown during {$package->getName()} installation. "
+                "\n<error>The following exception has been thrown during {$package->getName()} installation. "
                 . "The package has been removed. Installation is aborting.</error>"
             );
             throw $ex;
