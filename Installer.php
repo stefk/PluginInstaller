@@ -170,12 +170,12 @@ class Installer extends LibraryInstaller
 
         return $installer;
     }
-    
+
     private function getKernel()
     {
         if ($this->kernel === null) {
             require_once $this->vendorDir . '/../app/AppKernel.php';
-            $kernel = new \AppKernel('tmp-' . time(), false);
+            $kernel = new \AppKernel('tmp' . time(), false);
             $kernel->boot();
 
             return $kernel;
