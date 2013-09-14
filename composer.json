@@ -4,6 +4,7 @@
     "require": {
         "claroline/installation-bundle": "~1.0",
         "claroline/bundle-recorder": "~1.0",
+        "claroline/installation-bundle": "~1.0",
         "claroline/core-bundle": "dev-master"
     },
     "require-dev": {
