@@ -9,6 +9,7 @@ use Composer\Repository\InstalledRepositoryInterface;
 use Composer\Package\PackageInterface;
 use Composer\Autoload\ClassLoader;
 use Symfony\Component\HttpKernel\KernelInterface;
+use Claroline\BundleRecorder\Recorder;
 
 /**
  * Composer custom installer for Claroline plugin bundles.
@@ -60,6 +61,7 @@ class Installer extends LibraryInstaller
             $this->io->write("  - Installing <info>{$package->getName()}</info> as a Claroline plugin");
             $installer->install($bundle);
         } catch (\Exception $ex) {
+            $this->getBundleRecorder()->removeBundles(array(get_class($bundle)));
             $this->uninstallPackage($repo, $package);
             $this->io->write(
                 "\n<error>The following exception has been thrown during {$package->getName()} installation. "
@@ -182,6 +184,19 @@ class Installer extends LibraryInstaller
         }
 
         return $this->kernel;
+    }
+
+    private function getBundleRecorder()
+    {
+        $vendorDir = rtrim($this->composer->getConfig()->get('vendor-dir'), '/');
+        $bundleFile = realpath(($vendorDir ? $vendorDir . '/' : '') . '/../app/config/bundles.ini');
+        $recorder = new Recorder($bundleFile);
+        $io = $this->io;
+        $recorder->setLogger(function ($message) use ($io) {
+            $io->write("    {$message}");
+        });
+
+        return $recorder;
     }
 
     private function getDatabaseVersion(PackageInterface $package)
