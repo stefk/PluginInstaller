@@ -2,10 +2,9 @@
     "name": "claroline/plugin-installer",
     "type": "composer-installer",
     "require": {
-        "claroline/installation-bundle": "~1.0",
         "claroline/bundle-recorder": "~1.0",
-        "claroline/installation-bundle": "~1.0",
-        "claroline/core-bundle": "dev-master"
+        "claroline/installation-bundle": "~2.0",
+        "claroline/core-bundle": "~1.0"
     },
     "require-dev": {
         "composer/composer": "dev-master",
