@@ -11,6 +11,7 @@ use Composer\Autoload\ClassLoader;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Doctrine\Common\Annotations\AnnotationRegistry;
 use Claroline\BundleRecorder\Recorder;
+use Claroline\BundleRecorder\Detector;
 use Claroline\InstallationBundle\Bundle\BundleVersion;
 
 /**
@@ -103,7 +104,7 @@ class Installer extends LibraryInstaller
         );
         $msg = "  - Migrating <info>{$initial->getName()}</info> to version '{$target->getPrettyVersion()}'";
 
-        // versions can be equals if a package is referred to using versions
+        // versions can be equal if a package is referred to using versions
         // like "dev-master": in that case we can't know (or can we ?) what's
         // the direction of the update (upgrade/downgrade), so the up direction
         // is chosen, as it's the more likely update move.
@@ -154,28 +155,10 @@ class Installer extends LibraryInstaller
 
     private function getBundle($packageName)
     {
-        $parts = explode('/', $packageName);
-        $vendor = ucfirst($parts[0]);
-        $bundleParts = explode('-', $parts[1]);
-        $bundle = '';
+        $detector = new Detector();
+        $bundleClass = $detector->detectBundle("{$this->getVendorPath()}/{$packageName}");
 
-        foreach ($bundleParts as $bundlePart) {
-            $bundle .= ucfirst($bundlePart);
-        }
-
-        $namespace = "{$vendor}\\{$bundle}";
-        $fqcn = "{$namespace}\\{$vendor}{$bundle}";
-        $packagePath = "{$this->vendorDir}/{$packageName}";
-
-        $loader = new ClassLoader();
-        $loader->add($namespace, $packagePath);
-        $loader->register();
-
-        if (class_exists('Doctrine\Common\Annotations\AnnotationRegistry')) {
-            AnnotationRegistry::registerLoader(array($loader, 'loadClass'));
-        }
-
-        return new $fqcn;
+        return new $bundleClass;
     }
 
     private function getPluginInstaller()
@@ -197,8 +180,7 @@ class Installer extends LibraryInstaller
 
     private function getBundleRecorder()
     {
-        $vendorDir = rtrim($this->composer->getConfig()->get('vendor-dir'), '/');
-        $bundleFile = realpath(($vendorDir ? $vendorDir . '/' : '') . '/../app/config/bundles.ini');
+        $bundleFile = $this->getVendorPath() . '/../app/config/bundles.ini';
         $recorder = new Recorder($bundleFile);
         $io = $this->io;
         $recorder->setLogger(function ($message) use ($io) {
@@ -206,6 +188,13 @@ class Installer extends LibraryInstaller
         });
 
         return $recorder;
+    }
+
+    private function getVendorPath()
+    {
+        $vendorDir = rtrim($this->composer->getConfig()->get('vendor-dir'), '/');
+
+        return realpath($vendorDir ?: '');
     }
 
     private function getDatabaseVersion(PackageInterface $package)
