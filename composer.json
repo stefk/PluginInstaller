@@ -4,7 +4,7 @@
     "require": {
         "claroline/bundle-recorder": "~1.1",
         "claroline/installation-bundle": "~2.0",
-        "claroline/core-bundle": "~1.0"
+        "claroline/core-bundle": "~2.0"
     },
     "require-dev": {
         "composer/composer": "dev-master",
